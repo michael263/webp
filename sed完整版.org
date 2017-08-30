@@ -1,0 +1,888 @@
+sed实例精解－－例说sed完整版 2011-05-10 22:13:25
+http://blog.chinaunix.net/uid-23354495-id-304513.html
+分类： Python/Ruby
+最近在学习shell，怕学了后面忘了前面的就把学习和实验的过程记录下来了。这里是关于sed的，前面有三四篇分开的，现在都把它们弄到了一起，并做了一些调整，二十多页，有点长啦。不过大部分都是例子来着，呵呵。
+在电脑前坐太久了还真是不行，脖子都歪啦！强烈建议各位找点时间多动动，多动动！还是身体重要嘛！！！
+我的实验环境是： fedora 14 ，bash。
+在实验中遇到了一些问题，都在后面的例子中提到啦。有些问题纠结了好久，才发现只是多了或少了一个空格的问题，汗......
+这中间肯定还有很多问题，热烈欢迎各位赐教！
+路才开始，努力，坚持，加油！！！
+
+* 例说sed
+
+sed：stream editor
+流线型，非交互式的编辑器。它每次只处理一行文件并把输出打印到屏幕上。
+Pattern space: 模式空间即存放当前正在处理的行的缓存空间。 一旦处理工作完成，sed就会把结果输出到屏幕，然后清空模式空间并把下一行读入模式空间，进行相关处理；直到最后一行。
+sed是无破坏性的，它不更改原文件，除非你使用重定向保存输出结果。
+对于一行文本，sed命令是依次执行的，如果有多个命令的话。这时，要注意各命令之间可能产生的相互影响。
+对于多个sed命令，我们可以用“｛｝”把它们括起来。但要注意，右花括号一定要单独成行。
+sed命令后不能有空格，前面则无所谓。
+我们可以把一系列的sed命令写入文件中并用sed 的－f选项调用
+好啦，打住先（没提到的后面都会有例子说明的，嘿嘿）
+
+首先，我们来看看sed的语法及寻址方式：
+* 语法：
+sed [options] 'command' filename(s)
+寻址方式：
+1.单行寻址：［line-address］command；寻找匹配line-address的行并进行处理。
+2.行集合寻址：［regexp］command ;匹配文件中的一行或多行，如/^A/command匹配所有以A开头的行。
+3.多行寻址： [line-address1，line-address2] command；寻找在两个地址之间的内容并做相应的处理。
+4.嵌套寻址：10,20｛
+/^$/d
+#上面三种寻址方法都可以应用在这里
+｝
+接下来，瞧瞧sed的一些命令和选项
+sed选项：
+选项
+功能
+-e
+允许多次编辑
+-f
+跟随脚本文件名
+-n
+禁止默认输出
+
+sed的相关命令：
+命令
+功能
+a\
+向当前行添加文本行
+c\
+用新的文本行取代当前行里的文本
+i\
+在当前行之前插入文本
+d
+删除行
+h
+把模式空间内容复制到一个固定缓存
+H
+把模式空间内容添加到一个固定缓存
+g
+把固定缓存里的所有文本都复制到模式缓存，重写模式缓存的内容
+G
+把固定缓存里的所有文本添加到模式缓存
+l
+列出不打印的字符
+p
+打印行
+P(大写)
+多行打印，输出多行模式空间里的第一部分，直到第一个嵌入的换行符为止
+n
+输出模式空间的内容并读取下一行.
+命令简单来说就是提前读取下一行，覆盖模型空间前一行（并没有删除，因此依然打印至标准输出），
+如果命令未执行成功（并非跳过：前端条件不匹配），则放弃之后的任何命令，并对新读取的内容，重头执行sed。
+N
+读取新的输入行并将其添加到模式空间的现有内容之后来创建多行模式空间.
+命令简单来说就是追加下一行到模式空间，同时将两行看做一行，
+但是两行之间依然含有\n换行符，如果命令未执行成功（并非跳过：前端条件不匹配），则放弃之后任何命令
+q
+结束或退出
+r
+读入行，从某个文件
+!
+把命令应用到选定行之外的其它所有行
+
+* s 替换
+
+替换标志：
+标志
+功能
+g
+全局替换
+
+p
+打印
+w
+把行写到文件中
+x
+交换；用模式空间的内容交换固定缓存的内容
+y
+转换，如大小写转换
+
+
+sed支持的一些元字符：
+元字符
+功能
+例
+^
+定位行开头
+/^sed/:匹配所有以sed开头的行
+$
+定位行结尾
+/sed$/:匹配所有以sed结尾的行
+.
+匹配单个字符，不包括换行符
+/s.d/:匹配包含一个s，后跟一个字符，再跟一个e的行
+*
+匹配零个或多个字符
+/*sed/:匹配的行有零个或多个空格且其后跟模式sed
+[]
+匹配集中的一个字符
+/[Ss]ed/:匹配包含sed或Sed的行
+[^]
+反上
+/[^Ss]ed/:匹配的行不包含s，S且后跟ed
+\(..\)
+# 保存被匹配的字符
+# s/\(love\)/\1 ly/：用lovely取代love。把被标志的部分标为1，以后就能用\1引用。
+# 最多允许使用9个标记，第一个从模式的最左端开始。如上面的love就保存在寄存器1里且被记在替换串里。&保存搜索串以便记在替换串里
+# s/sed/fuck&/:＆代表搜索串sed。此例中sed将被fucksed替换
+\<
+定位词开头
+/\匹配以sed开头的一个词
+\>
+定位词结尾
+/sed\>/:匹配以sed结尾的一个词
+x\{m\}
+字符x重复m次
+o\{3\}:匹配的行里o要连续出现3次
+x\{m,\}
+字符x至少重复m次
+o\{3\，}:匹配的行里o至少要连续出现3次
+x\{m,n\}
+字符x至少重复m次且不超过n次
+O\{3,5\}:匹配的行里要o至少要连续出现3次但不超过5次
+
+好啦，下面就有例子来说话喔，呵呵
+datafile的内容：
+northwest NW Charles Main 3.0 .98 3 34
+western WE Sharon Gray 5.3 .97 5 23
+southwest SW Lewis Dalsass 2.7 .8 2 18
+southern SO Suan Chin 5.1 .95 4 15
+southeast SE Patricia Hemenway 4.0 .7 4 17
+eastern EA TB Savage 4.4 .84 5 20
+northeast NE AM Main Jr. 5.1 .94 3 13
+north NO Margot Weber 4.5 .89 5 9
+central CT Ann Stephens 5.7 .94 5 13
+e.g. 1:
+a\－－找到以north开头的行并在其后添加很多FUCK
+[fedora@novice chap04]$ sed '/^north/a\FUCK FUCK FUCK FUCK \nkcuf kcuf kcuf kcuf' datafile
+northwestNWCharles Main3.0.98334
+FUCK FUCK FUCK FUCK
+kcuf kcuf kcuf kcuf
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+FUCK FUCK FUCK FUCK
+kcuf kcuf kcuf kcuf
+northNOMargot Weber4.5.8959
+FUCK FUCK FUCK FUCK
+kcuf kcuf kcuf kcuf
+centralCT Ann Stephens5.7.94513
+***************************************************************************************************
+发现在bash中只能像上面那样输入且a后的\可有可无 ； 并不像书上说的那样，不知是不是跟SHELL有关系
+一般，a后是要带\的，有时还要带两个。如果要添加的文本不止一行的话，除了最后一行每一行的结尾都要跟\。以上只是在控制台输入，在脚本中输入的情况还是和书上说的一样的。
+***************************************************************************************************
+
+e.g. 2:
+i\ －－在以central开头的行前分行插入FUCK
+[fedora@novice chap04]$ sed '/central/i\F\nU\nC\nK' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+F
+U
+C
+K
+centralCT Ann Stephens5.7.94513
+***************************************************************************************************
+一般，如果要添加的文本不止一行的话，除了最后一行每一行的结尾都要跟\。但在我这里好像有点不一样,在终端直接输入时。
+****************************************************************************************************
+e.g. 3:
+c\－－把有sourth的行全部用FUCK取代
+[fedora@novice chap04]$ sed '/south/c\FUCK' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+FUCK
+FUCK
+FUCK
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+****************************************************************************************************
+*其它与e.g.1 ,e.g. 2 类似
+****************************************************************************************************
+
+
+e.g. 4:
+d－－删除第一行
+[fedora@novice chap04]$ sed '1d' datafile
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+d－－删除1－4行
+[fedora@novice chap04]$ sed '1,4d' datafile
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+d－－删除有north的行
+[fedora@novice chap04]$ sed '/north/d' datafile
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+centralCT Ann Stephens5.7.94513
+***************************************************************************************************
+e.g. 5:
+s－－替换。用FUCK替换north.
+[fedora@novice chap04]$ sed 's/north/FUCK/' datafile
+FUCKwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+FUCKeast NEAM Main Jr.5.1.94313
+FUCKNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+
+* s－－替换。用FUCK替换所有以south开头的行中的south.
+[fedora@novice chap04]$ sed '/^south/s/south/FUCK/g' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+FUCKwestSWLewis Dalsass2.7.8218
+FUCKernSOSuan Chin5.1.95415
+FUCKeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+* s－－替换 &。 寻找大于1少于10的一位小数并用FUCK＋＆替代。这里的＆保存了前面的小数
+[fedora@novice chap04]$ sed 's/[0-9]\.[0-9]/FUCK&/' datafile
+northwestNWCharles MainFUCK3.0.98334
+westernWESharon GrayFUCK5.3.97523
+southwestSWLewis DalsassFUCK2.7.8218
+southernSOSuan ChinFUCK5.1.95415
+southeast SEPatricia HemenwayFUCK4.0.7417
+easternEATB SavageFUCK4.4.84520
+northeast NEAM Main Jr.FUCK5.1.94313
+northNOMargot WeberFUCK4.5.8959
+centralCT Ann StephensFUCK5.7.94513
+****************************************************************************************************
+刚开始时用的是下面的语句：
+sed '[0-9][0-9]$/FUCK&/' datafile，怎么弄都不成功。
+不知是怎么回事。
+*****************************************************************************************************
+e.g. 6:
+* p－－打印：默认打印所有的行。这里用-n选项过滤无关的行
+[fedora@novice chap04]$ sed -n '/north/p' datafile
+northwestNWCharles Main3.0.98334
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+发现一个问题：p也会把匹配的行打印两次：
+[fedora@novice chap04]$ sed '/north/p' datafile
+northwestNWCharles Main3.0.98334
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94
+也就是说不使用－n选项的话，p会打印出匹配两次
+P－－多行打印：在执行完所有命令后模式空间的内容会自动输出，在下面的例子中可以看到匹配的行输出了两次，但是-n选项会抑制这个动作。只有在与D，N配合使用时才会输出模式空间里的第一行，此时不用－n选项。
+[fedora@novice chap04]$ sed '/north/P' datafile
+northwestNWCharles Main3.0.98334
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+****************************************************************************************************
+
+e.g. 7:
+* D－－多行删除：选项看到d与D的不同之处了么？其中空行分别为1，2，3，4行。
+[fedora@novice chap04]$ cat >test
+this is a test line
+
+this is a test line
+
+
+this is a test line
+
+
+
+this is a test line
+
+
+
+
+this ia a test line
+[fedora@novice chap04]$ sed -e '/^$/N' -e '/^\n$/d' test
+this is a test line
+
+this is a test line
+this is a test line
+
+this is a test line
+this ia a test line
+[fedora@novice chap04]$ sed -e '/^$/N' -e '/^\n$/D' test
+this is a test line
+
+this is a test line
+
+this is a test line
+
+this is a test line
+
+this ia a test line
+****************************************************************************************************
+** '/^$/N'表示空行，附加读入下一行。 '/^\n$/d' 表示模式空间是2个空行，执行模式空间内容删除。
+可以看到，与N配合的情况下：
+使用d，若有偶数个空行将会全被删除，若有奇数个空行将会保留一行。这是因为d删除的是整个模式空间的内容。
+一旦遇到第一个空行就马上读入下一行，然后两行都删除。如果第三行为空且下一行不为空则命令不执行，空行被输出。
+使用D，当遇到两个空行时D会删除两个空行中的第一个，然后再读入下一行，如果是空行则删除第一行，如果空行后有文本则模式空间可以正常输出。
+***************************************************************************************************
+e.g. 8:关于N命令与-e选项在上面已在应用，这里就不举例啦，偷点懒哈，嘿嘿。
+*****************************************************************************************************
+
+e.g. 9:
+* r－－从文件中读取：从test中读取相关的内容添加到datafile中所有匹配的行的后面。
+[fedora@novice chap04]$ sed '/^south/r test' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+**********************************
+FUCK FUCK FUCK FUCK ,FUCK TOO MUCH
+**********************************
+southernSOSuan Chin5.1.95415
+**********************************
+FUCK FUCK FUCK FUCK ,FUCK TOO MUCH
+**********************************
+southeast SEPatricia Hemenway4.0.7417
+**********************************
+FUCK FUCK FUCK FUCK ,FUCK TOO MUCH
+**********************************
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+***************************************************************************************************
+e.g. 10
+* w－－写入文件：把datafile中所有匹配的行写入到test文件中
+[fedora@novice chap04]$ sed '/^south/w test' datafile|cat test
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+***************************************************************************************************
+
+e.g. 11
+* n－－next：如果有能匹配western行，则n命令使得sed读取下一行，然后执行相应命令
+[fedora@novice chap04]$ sed -e '/western/n' -e 's/SW/FUCK/' datafile|head -n 4
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestFUCKLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+***************************************************************************************************8
+
+e.g. 12
+* y－－变换：
+[fedora@novice chap04]$ sed '3,5y/s/S/' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+SouthweStSWLewiS DalSaSS2.7.8218
+SouthernSOSuan Chin5.1.95415
+SoutheaSt SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+
+[fedora@novice chap04]$ sed '1y/3/9/' datafile
+northwestNWCharles Main9.0.98994
+westernWESharon Gray5.3.97523
+# ***************************************************************************************************
+替换的类型要一致，数字与字母之间不能相互替换。
+且对正则表达式的元字符不起作用。
+# *****************************************************************************************************
+
+e.g. 13:
+* q－－退出：
+打印三行后退出
+[fedora@novice chap04]$ sed '3q' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+用相应的字符做出替换后退出
+[fedora@novice chap04]$ sed -e 'y/northwest/ABCDEFGHI/' -e q datafile
+ABCDEFGHDNWCEaClGH MaiA3.0.98334
+这样也可以的
+[fedora@novice chap04]$ sed '{ y/northwest/ABCDEFGHI/; q;}' datafile
+ABCDEFGHDNWCEaClGH MaiA3.0.98334
+# 多个命令写在一行时可以用－e选项，也可以用花括号把所有命令括起来并用分号隔开且最后一个分号可有可无，在我的实验环境下。
+**************************************************************************************************
+e.g. 14:
+* H/h/G/g－－保存和取得
+下面是这几个命令的一些组合，能看出些什么来么？
+[fedora@novice chap04]$ sed -e '/northeast/h' -e '$g' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+northeast NEAM Main Jr.5.1.94313
+[fedora@novice chap04]$ sed -e '/northeast/h' -e '$G' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+northeast NEAM Main Jr.5.1.94313
+[fedora@novice chap04]$ sed -e '/northeast/H' -e '$g' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+
+northeast NEAM Main Jr.5.1.94313
+[fedora@novice chap04]$ sed -e '/northeast/H' -e '$G' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+
+northeast NEAM Main Jr.5.1.94313
+
+# 因为呢，H/G在相应空间的内容之后放置一个换行符，且后面紧跟模式空间的内容；而g/h的呢都是取代相应空间的内容，所以就有上面的不同结果
+# $表示最后一行
+***************************************************************************************************
+
+e.g. 15
+# x－－交换模式/保持空间内容
+首先匹配第一个包含north的行放入保持缓存，然后匹配第一个包含south的行放入模式空间，最后把两者的内容交换。
+[fedora@novice chap04]$ sed -e '/north/h' -e '/south/x' datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+northwestNWCharles Main3.0.98334
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+
+****************************************************************************************************
+
+e.g. 16
+* sed脚本：
+[fedora@novice chap04]$ vim sedlist
+/central/a\
+------This is a test--------
+/northeast/i\
+------This is a test too------
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+------This is a test too------
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+------This is a test--------
+可以在里面添加注释，以＃开头的行被认为是注释
+如有多行，则每行都要以\结尾，除了最后一行。如，下面的脚本是可以正常执行的。
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands list
+
+/central/a\
+------This is a test too--------\
+------Hi am here----------------\
+
+#now ,the second test
+/northeast/i\
+------This is a test ------
+***************************************************************************************************
+
+
+****************************************************************************************************
+*******************************************************************************************************
+* 高级流控制命令
+b 分支 ：无条件转移
+t 测试 ：有条件的转移
+它们将脚本中的控制转移到包含特殊标签的行；如果没有标签则直接转移到脚本的末尾。只有当替换命令改变当前行时才会被执行。
+
+标签：任意的字符组合且长度不大于7，它本身占据一行且以冒号开头
+：mylabel
+冒号和标签之间不能有空格，标签后的空格会被当做标签的一部分。
+标签和命令之间允许有空格。
+
+
+* b 分支：[address] b [label]
+b --> branch,在脚本中将控制权转到另一行，通过它你可以跳到你想去的地方，是不是有点像c中的goto呀？
+它可以将一组命令当做一个过程来执行且这个过程在脚本中可以重复执行，只要条件满足。
+e.g 17
+b－－分支
+
+看下面的例子：
+e.g. 17.1
+匹配以north加空格开头的行，若匹配则转到:label后面的命令，在以s开头的行前插入FFFFFFFFFFFFFFUCK ；
+  
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+:label
+/^s/i\
+FFFFFFFFFFFFFFUCK
+/^north / b label
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+FFFFFFFFFFFFFFUCK
+southwestSWLewis Dalsass2.7.8218
+FFFFFFFFFFFFFFUCK
+southernSOSuan Chin5.1.95415
+FFFFFFFFFFFFFFUCK
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+其实这也是个循环，反复执行两个标签间的命令，直到模式不匹配。但是，如上，不管匹配与否两个标签间的内容至少会被执行一次。
+也就是说，正常情况下上面的命令都会被执行一次。看下面的例子：
+# 上面这个脚本有点问题，参考自己写的另外一个脚本
+#This script is a test for sed commands
+
+/^north / b label
+/^north /! b label2
+
+:label
+/ber/i\
+FFFFFFFFFFFFFFUCK
+
+:label2
+# *******************************
+
+e.g 17.2
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+:label
+/^n/d
+/^A/b label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+看到了吧！虽然模式不匹配，但还是执行了两个标签间的内容，嘿嘿！再看看上面，和do-while语句有什么异同？
+e.g. 17.3
+如果匹配，什么都不做，否则执行后的命令向以cent开头的行后添加一些内容
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+:label
+/^A/b label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+westernWESharon Gray5.3.97523
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+e.g. 17.4
+* 另一种循环模式
+command1
+/pattern/b label
+command2
+label:
+command3
+首先执行command1，然后看模式是否匹配，若匹配则执行command3，否则执行command2，command3
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+/^n/d
+/^A/b label
+s/south/SSSSSS/
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+westernWESharon Gray5.3.97523
+SSSSSSwestSWLewis Dalsass2.7.8218
+SSSSSSernSOSuan Chin5.1.95415
+SSSSSSeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+模式不匹配，顺序执行各命令，下面来看匹配的情况：
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+/^w/d
+#north后有一个空格
+/^north /b label
+s/south/SSSSSS/
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+SSSSSSwestSWLewis Dalsass2.7.8218
+SSSSSSernSOSuan Chin5.1.95415
+SSSSSSeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+# 很显然，这里并没有跳过第二个命令，但是理论上只模式空间匹配的话就会直接转到：label后的命令的呀！这到底是为什么呢？
+# 我们来看下一个脚本，只对上个脚本做一点点修改：
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+/^w/d
+#north后有一个空格
+/^north /b label
+s/north /SSSSSS/
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+# 这次结果正常啦，它找到了以north加空格开头的行，并跳过了第二个命令。
+再来看两个例子：
+在第二个命令后再添加一个命令s/south/NNNNNN看会有怎样的结果：
+[fedora@novice chap04]$ cat sedlist
+#This script is a test for sed commands
+/^w/d
+/^north /b label
+s/north /SSSSSS/
+s/south/NNNNNN/
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWCharles Main3.0.98334
+NNNNNNwestSWLewis Dalsass2.7.8218
+NNNNNNernSOSuan Chin5.1.95415
+NNNNNNeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+显然，s/north /SSSSSS/ 没有被执行而s/south/NNNNNN/ 被执行啦
+又一个例子：
+[fedora@novice chap04]$ cat sedlist1
+#This script is a test for sed commands
+/^w/d
+/^north/b label
+p
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist1 datafile
+northwestNWCharles Main3.0.98334
+southwestSWLewis Dalsass2.7.8218
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+可以看到p应用到了除以north开头的所有行！再来一个例子：
+[fedora@novice chap04]$ cat sedlist1
+#This script is a test for sed commands
+/^w/d
+/^north/b label
+p
+l
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist1 datafile
+northwestNWCharles Main3.0.98334
+southwestSWLewis Dalsass2.7.8218
+southwest\tSW\tLewis Dalsass\t\t2.7\t.8\t2\t18\r$
+southwestSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southern\tSO\tSuan Chin\t\t5.1\t.95\t4\t15\r$
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+southeast \tSE\tPatricia Hemenway\t4.0\t.7\t4\t17\r$
+southeast SEPatricia Hemenway4.0.7417
+easternEATB Savage4.4.84520
+eastern\t\tEA\tTB Savage\t\t4.4\t.84\t5\t20\r$
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+central\t\tCT \tAnn Stephens\t\t5.7\t.94\t5\t13\r$
+centralCT Ann Stephens5.7.94513
+--FUCK!!!
+Just a test!
+Take it easy!!!
+看到了么？P,l都只应用到了除以north开头的所有行上！！！
+从上面的一堆例子中，可以得到：在
+command1
+/pattern/b label
+command2
+label:
+command3
+模式中 只有 针对 匹配pattern的行 的操作才会被跳过！
+e.g. 17.5
+如何指定执行上例中的command2或command3中的一个
+commmand1
+/pattern/b label
+command2
+b
+:label
+command3
+# 首先执行command1，然后执行/pattern/b label，如果模式匹配则直接跳到command3并执行相关命令，
+# 否则跳到command2在执行完相关命令后遇到分支b，分支b将控制转到脚本的结尾，绕过了command3.
+下面看一个简单的例子：
+[fedora@novice chap04]$ cat sedlist1
+#This script is a test for sed commands
+/^e/d
+/^DDD/b label
+s/west/SSSSSS/
+b
+:label
+/^cent/a\
+--FUCK!!! \
+Just a test! \
+Take it easy!!!
+[fedora@novice chap04]$ sed -f sedlist1 datafile
+northSSSSSSNWCharles Main3.0.98334
+SSSSSSernWESharon Gray5.3.97523
+southSSSSSSSWLewis Dalsass2.7.8218
+southernSOSuan Chin5.1.95415
+southeast SEPatricia Hemenway4.0.7417
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+是吧，果然当模式不匹配时只执行command2而:label后的命令没有被执行，哈哈
+e.g. 18
+* t: [address] t [label]
+# t－－>test，如果在当前匹配的行上成功地进行了替换，那么t命令就转到标签处或脚本末尾（未给定标签默认指向脚本末尾）。
+# t要单独成行
+
+下面来一个简单的例子：
+[fedora@novice chap04]$ cat sedlist
+/^s/d
+/^west/s/west/QQQ/
+t label1
+/^n/y/nort/FUCK/
+t label
+:label
+/^F/y/FUCK/nort/
+:label1
+/^QQQ/s/QQQ/west/
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWrharles Main3.0.98334
+westernWESharon Gray5.3.97523
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+
+[fedora@novice chap04]$ cat sedlist
+/^s/d
+/^west/y/Q/a/
+t label1
+/^n/y/nort/FUCK/
+t label
+:label
+/^F/y/FUCK/nort/
+:label1
+/^n/y/FUCK/nort/
+[fedora@novice chap04]$ sed -f sedlist datafile
+northwestNWrharles Main3.0.98334
+westernWESharon Gray5.3.97523
+easternEATB Savage4.4.84520
+northeast NEAM Main Jr.5.1.94313
+northNOMargot Weber4.5.8959
+centralCT Ann Stephens5.7.94513
+看出两者的区别了么？我相会的，嘿嘿
